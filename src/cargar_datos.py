@@ -19,7 +19,6 @@ def cargarDatos():
     return df
 
 if __name__ == "__main__":
-
     # Si se ejecuta este script directamente, carga los datos y muestra las primeras filas
     datos = cargarDatos()
     print(datos.head())
