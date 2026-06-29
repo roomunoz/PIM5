@@ -1,16 +1,12 @@
-# =================================================================
 # ARCHIVO: src/ft_engineering.py
 # VERSIÓN: V1.1.2 (Avance 2 FINAL - PRODUCCIÓN)
 # DESCRIPCIÓN:
 # Pipeline completo de Feature Engineering + Baseline Model.
 # Incluye limpieza, eliminación de variables irrelevantes,
 # creación de features, control de leakage y evaluación.
-# =================================================================
 
 
-# ================================================================
-# IMPORTS
-# ================================================================
+# IMPORTAMOS LIBRERIAS
 import pandas as pd
 import numpy as np
 
@@ -24,15 +20,11 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
 
 
-# ================================================================
 # CARGA DE DATOS
-# ================================================================
 from cargar_datos import cargarDatos
 
 
-# ================================================================
 # FUNCIONES AUXILIARES
-# ================================================================
 def summarize_classification(y_test, y_pred):
     print("\n" + "="*75)
     print(" RESUMEN DE EVALUACIÓN DEL MODELO")
@@ -241,7 +233,7 @@ def ft_engineering():
     # ------------------------------------------------------------
     print("\n[LOG]  Entrenando modelo baseline...")
 
-    model = LogisticRegression(max_iter=1000)
+    model = LogisticRegression(max_iter=1000, class_weight= "balanced")
 
     model = build_model(model, X_train, y_train)
 
@@ -260,7 +252,7 @@ def ft_engineering():
 
 
 # ================================================================
-# BLOQUE DE EJECUCIÓN LOCAL 
+# COMPROBACIÓN EJECUCIÓN
 # ================================================================
 if __name__ == "__main__":
 
