@@ -46,6 +46,7 @@ def preparar_datos(df: pd.DataFrame) -> pd.DataFrame:
     df['ratio_endeudamiento'] = df['saldo_total'] / df['salario_cliente']
     df['ratio_endeudamiento'] = df['ratio_endeudamiento'].replace([np.inf, -np.inf], np.nan)
 
+
     if 'fecha_prestamo' in df.columns:
         df['fecha_prestamo'] = pd.to_datetime(df['fecha_prestamo'], errors='coerce')
         df['anio_prestamo'] = df['fecha_prestamo'].dt.year
