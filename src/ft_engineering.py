@@ -1,9 +1,11 @@
 # ARCHIVO: src/ft_engineering.py
-# VERSIÓN: V1.1.2 (Avance 2 FINAL - PRODUCCIÓN)
+# VERSIÓN: V1.1.3 (Avance 2 FINAL - PRODUCCIÓN)
 # DESCRIPCIÓN:
 # Pipeline completo de Feature Engineering + Baseline Model.
 # Incluye limpieza, eliminación de variables irrelevantes,
 # creación de features, control de leakage y evaluación.
+# Refactorizado para separar la limpieza y el preprocesamiento
+# en funciones exportables y reutilizables desde otros módulos.
 
 
 # IMPORTAMOS LIBRERIAS
@@ -24,47 +26,30 @@ from sklearn.metrics import classification_report, confusion_matrix, roc_auc_sco
 from cargar_datos import cargarDatos
 
 
-# FUNCIONES AUXILIARES
-def summarize_classification(y_test, y_pred):
-    print("\n" + "="*75)
-    print(" RESUMEN DE EVALUACIÓN DEL MODELO")
-    print("="*75)
-
-    print("\n Matriz de Confusión:")
-    print(confusion_matrix(y_test, y_pred))
-
-    print("\n Reporte de Clasificación:")
-    print(classification_report(y_test, y_pred))
-
-
-def build_model(model, X_train, y_train):
-    print("\n[LOG]  Entrenando modelo baseline...")
-    model.fit(X_train, y_train)
-    print("[LOG] Modelo entrenado correctamente")
-    return model
-
-
 # ================================================================
-# PIPELINE PRINCIPAL
+# FUNCIONES EXPORTABLES
 # ================================================================
-def ft_engineering():
 
-    print("\n" + "="*85)
-    print(" PIPELINE FEATURE ENGINEERING + MODELADO BASELINE")
-    print("="*85)
+def preparar_datos(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aplica limpieza y feature engineering sobre un DataFrame.
 
+    Recibe un DataFrame crudo y devuelve uno listo para el pipeline
+    de preprocesamiento. Es la función central del módulo: puede ser
+    importada desde cualquier otro script (model_monitoring, app, etc.)
+    para garantizar que todos los datos pasan por el mismo tratamiento.
+
+    Parámetros:
+        df : DataFrame crudo cargado desde cualquier fuente.
+
+    Retorna:
+        DataFrame limpio con las features creadas y variables irrelevantes
+        eliminadas.
+    """
+    df = df.copy()
 
     # ------------------------------------------------------------
-    # 1. CARGA DE DATOS
-    # ------------------------------------------------------------
-    df = cargarDatos().copy()
-
-    print("\n[LOG] Dataset cargado")
-    print(f"[LOG] Shape inicial: {df.shape}")
-
-
-    # ------------------------------------------------------------
-    # 2. ELIMINACIÓN DE VARIABLES IRRELEVANTES (CRÍTICO)
+    # 1. ELIMINACIÓN DE VARIABLES IRRELEVANTES
     # ------------------------------------------------------------
     print("\n[LOG] Eliminando variables irrelevantes...")
 
@@ -73,15 +58,17 @@ def ft_engineering():
         'nombre_cliente'
     ]
 
-    df.drop(columns=[c for c in columnas_irrelevantes if c in df.columns],
-            inplace=True,
-            errors='ignore')
+    df.drop(
+        columns=[c for c in columnas_irrelevantes if c in df.columns],
+        inplace=True,
+        errors='ignore'
+    )
 
     print("[LOG] IDs eliminados (no aportan al modelo)")
 
 
     # ------------------------------------------------------------
-    # 3. LIMPIEZA CATEGÓRICA
+    # 2. LIMPIEZA CATEGÓRICA
     # ------------------------------------------------------------
     print("\n[LOG] Validando variables categóricas...")
 
@@ -100,25 +87,27 @@ def ft_engineering():
 
 
     # ------------------------------------------------------------
-    # 4. FEATURE ENGINEERING
+    # 3. FEATURE ENGINEERING FINANCIERO
     # ------------------------------------------------------------
     print("\n[LOG] Feature Engineering...")
 
-    # salario cero entero
+    # Indicador de salario cero antes de reemplazar
     df['salario_cero'] = (df['salario_cliente'] == 0).astype(int)
 
     # Convertir 0 → NaN para imputación correcta
     df['salario_cliente'] = df['salario_cliente'].replace(0, np.nan)
 
-    # Ratio endeudamiento robusto
+    # Ratio de endeudamiento robusto
     df['ratio_endeudamiento'] = df['saldo_total'] / df['salario_cliente']
-    df['ratio_endeudamiento'] = df['ratio_endeudamiento'].replace([np.inf, -np.inf], np.nan)
+    df['ratio_endeudamiento'] = df['ratio_endeudamiento'].replace(
+        [np.inf, -np.inf], np.nan
+    )
 
     print("[LOG] Features financieras creadas")
 
 
     # ------------------------------------------------------------
-    #  FEATURE ENGINEERING TEMPORAL
+    # 4. FEATURE ENGINEERING TEMPORAL
     # ------------------------------------------------------------
     if 'fecha_prestamo' in df.columns:
         df['fecha_prestamo'] = pd.to_datetime(df['fecha_prestamo'], errors='coerce')
@@ -141,26 +130,23 @@ def ft_engineering():
         df.drop(columns=['puntaje'], inplace=True)
         print("[LOG] puntaje eliminado (leakage potencial)")
 
-
-    # ------------------------------------------------------------
-    # 6. TARGET / FEATURES
-    # ------------------------------------------------------------
-    print("\n[LOG] Separando target y features...")
-
-    target = 'Pago_atiempo'
-
-    X = df.drop(columns=[target])
-    y = df[target]
-
-    print(f"[LOG] Features finales: {X.shape}")
-    print(f"[LOG] Distribución target:\n{y.value_counts(normalize=True)}")
+    return df
 
 
-    # ------------------------------------------------------------
-    # 7. TIPOS DE VARIABLES
-    # ------------------------------------------------------------
-    print("\n[LOG]  Detectando tipos de variables...")
+def construir_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
+    """
+    Construye el ColumnTransformer de preprocesamiento según los
+    tipos de variables presentes en X.
 
+    Puede ser importado para reutilizar el mismo preprocessor en
+    entrenamiento y en producción (por ejemplo, en model_monitoring).
+
+    Parámetros:
+        X : DataFrame de features ya limpio (sin target).
+
+    Retorna:
+        ColumnTransformer configurado pero aún no ajustado (sin fit).
+    """
     num_features = X.select_dtypes(include=[np.number]).columns.tolist()
 
     ordinal_features = ['tendencia_ingresos']
@@ -174,10 +160,6 @@ def ft_engineering():
     print(f"[LOG] Categóricas: {len(cat_features)}")
     print(f"[LOG] Ordinales: {len(ordinal_features)}")
 
-
-    # ------------------------------------------------------------
-    # 8. PIPELINES DE PREPROCESAMIENTO
-    # ------------------------------------------------------------
     num_pipe = Pipeline([
         ('imputer', SimpleImputer(strategy='median'))
     ])
@@ -200,9 +182,82 @@ def ft_engineering():
         ('ord', ord_pipe, ordinal_features)
     ])
 
+    return preprocessor
+
+
+# ================================================================
+# FUNCIONES AUXILIARES DE MODELADO
+# ================================================================
+
+def summarize_classification(y_test, y_pred):
+    print("\n" + "="*75)
+    print(" RESUMEN DE EVALUACIÓN DEL MODELO")
+    print("="*75)
+
+    print("\n Matriz de Confusión:")
+    print(confusion_matrix(y_test, y_pred))
+
+    print("\n Reporte de Clasificación:")
+    print(classification_report(y_test, y_pred))
+
+
+def build_model(model, X_train, y_train):
+    print("\n[LOG] Entrenando modelo baseline...")
+    model.fit(X_train, y_train)
+    print("[LOG] Modelo entrenado correctamente")
+    return model
+
+
+# ================================================================
+# PIPELINE PRINCIPAL
+# ================================================================
+
+def ft_engineering():
+
+    print("\n" + "="*85)
+    print(" PIPELINE FEATURE ENGINEERING + MODELADO BASELINE")
+    print("="*85)
+
 
     # ------------------------------------------------------------
-    # 9. SPLIT TRAIN / TEST
+    # 1. CARGA DE DATOS
+    # ------------------------------------------------------------
+    df = cargarDatos().copy()
+
+    print("\n[LOG] Dataset cargado")
+    print(f"[LOG] Shape inicial: {df.shape}")
+
+
+    # ------------------------------------------------------------
+    # 2. LIMPIEZA Y FEATURE ENGINEERING
+    # ------------------------------------------------------------
+    df = preparar_datos(df)
+
+
+    # ------------------------------------------------------------
+    # 3. TARGET / FEATURES
+    # ------------------------------------------------------------
+    print("\n[LOG] Separando target y features...")
+
+    target = 'Pago_atiempo'
+
+    X = df.drop(columns=[target])
+    y = df[target]
+
+    print(f"[LOG] Features finales: {X.shape}")
+    print(f"[LOG] Distribución target:\n{y.value_counts(normalize=True)}")
+
+
+    # ------------------------------------------------------------
+    # 4. TIPOS DE VARIABLES
+    # ------------------------------------------------------------
+    print("\n[LOG] Detectando tipos de variables...")
+
+    preprocessor = construir_preprocessor(X)
+
+
+    # ------------------------------------------------------------
+    # 5. SPLIT TRAIN / TEST
     # ------------------------------------------------------------
     print("\n[LOG] Dividiendo train/test...")
 
@@ -217,7 +272,7 @@ def ft_engineering():
 
 
     # ------------------------------------------------------------
-    # 10. TRANSFORMACIÓN
+    # 6. TRANSFORMACIÓN
     # ------------------------------------------------------------
     print("\n[LOG] Aplicando preprocessing...")
 
@@ -229,11 +284,11 @@ def ft_engineering():
 
 
     # ------------------------------------------------------------
-    # 11. MODELO BASELINE
+    # 7. MODELO BASELINE
     # ------------------------------------------------------------
-    print("\n[LOG]  Entrenando modelo baseline...")
+    print("\n[LOG] Entrenando modelo baseline...")
 
-    model = LogisticRegression(max_iter=1000, class_weight= "balanced")
+    model = LogisticRegression(max_iter=1000, class_weight="balanced")
 
     model = build_model(model, X_train, y_train)
 
