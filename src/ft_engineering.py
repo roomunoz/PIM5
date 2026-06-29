@@ -4,6 +4,7 @@
 # Incluye funciones summarize_classification y build_model.
 
 import os
+import joblib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,9 +15,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
+from model_utils import preparar_datos
+from model_training_evaluation import CONFIG_MODELOS, entrenar_y_evaluar, comparar_modelos
 
 from sklearn.metrics import (
     classification_report,
@@ -25,38 +25,6 @@ from sklearn.metrics import (
 )
 
 from cargar_datos import cargarDatos
-
-
-def preparar_datos(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-
-    columnas_irrelevantes = ['id_cliente', 'nombre_cliente']
-    df.drop(
-        columns=[c for c in columnas_irrelevantes if c in df.columns],
-        inplace=True, errors='ignore'
-    )
-
-    categorias_validas = ['Creciente', 'Decreciente', 'Estable']
-    df['tendencia_ingresos'] = df['tendencia_ingresos'].where(
-        df['tendencia_ingresos'].isin(categorias_validas), np.nan
-    )
-
-    df['salario_cero'] = (df['salario_cliente'] == 0).astype(int)
-    df['salario_cliente'] = df['salario_cliente'].replace(0, np.nan)
-    df['ratio_endeudamiento'] = df['saldo_total'] / df['salario_cliente']
-    df['ratio_endeudamiento'] = df['ratio_endeudamiento'].replace([np.inf, -np.inf], np.nan)
-
-    if 'fecha_prestamo' in df.columns:
-        df['fecha_prestamo'] = pd.to_datetime(df['fecha_prestamo'], errors='coerce')
-        df['anio_prestamo'] = df['fecha_prestamo'].dt.year
-        df['mes_prestamo'] = df['fecha_prestamo'].dt.month
-        df['dia_semana'] = df['fecha_prestamo'].dt.dayofweek
-        df.drop(columns=['fecha_prestamo'], inplace=True)
-
-    if 'puntaje' in df.columns:
-        df.drop(columns=['puntaje'], inplace=True)
-
-    return df
 
 
 def construir_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
@@ -93,84 +61,6 @@ def construir_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
     return preprocessor
 
 
-def summarize_classification(y_test, y_pred, y_prob, nombre: str):
-    print("\n" + "="*75)
-    print(f" EVALUACION — {nombre}")
-    print("="*75)
-    print("\n Matriz de Confusion:")
-    print(confusion_matrix(y_test, y_pred))
-    print("\n Reporte de Clasificacion:")
-    print(classification_report(y_test, y_pred, zero_division=0))
-    roc_auc = roc_auc_score(y_test, y_prob)
-    print(f"\n ROC-AUC: {roc_auc:.4f}")
-    return roc_auc
-
-
-def build_model(model_class, X_train, y_train, **kwargs):
-    model = model_class(**kwargs)
-    model.fit(X_train, y_train)
-    return model
-
-
-def evaluar_modelo(model, X_test, y_test, nombre: str) -> dict:
-    y_pred = model.predict(X_test)
-    y_prob = model.predict_proba(X_test)[:, 1]
-    roc_auc = summarize_classification(y_test, y_pred, y_prob, nombre)
-
-    reporte = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
-
-    return {
-        'Modelo':      nombre,
-        'ROC-AUC':     round(roc_auc, 4),
-        'Accuracy':    round(reporte['accuracy'], 4),
-        'Precision-0': round(reporte['0']['precision'], 4),
-        'Recall-0':    round(reporte['0']['recall'], 4),
-        'F1-0':        round(reporte['0']['f1-score'], 4),
-        'Precision-1': round(reporte['1']['precision'], 4),
-        'Recall-1':    round(reporte['1']['recall'], 4),
-        'F1-1':        round(reporte['1']['f1-score'], 4),
-    }
-
-
-_CONFIG_MODELOS = [
-    ('Logistic Regression', LogisticRegression, {
-        'max_iter': 1000, 'class_weight': 'balanced', 'random_state': 42
-    }),
-    ('Random Forest', RandomForestClassifier, {
-        'n_estimators': 300, 'class_weight': 'balanced',
-        'max_depth': 10, 'min_samples_leaf': 5, 'random_state': 42, 'n_jobs': -1
-    }),
-    ('XGBoost', XGBClassifier, {
-        'n_estimators': 300, 'learning_rate': 0.05, 'max_depth': 6,
-        'eval_metric': 'logloss', 'random_state': 42, 'n_jobs': -1, 'verbosity': 0
-    }),
-]
-
-
-def entrenar_y_evaluar(model_class, kwargs, nombre, X_train, y_train, X_test, y_test) -> tuple:
-    if nombre == 'XGBoost':
-        kwargs['scale_pos_weight'] = (y_train == 0).sum() / (y_train == 1).sum()
-
-    model = build_model(model_class, X_train, y_train, **kwargs)
-    metricas = evaluar_modelo(model, X_test, y_test, nombre)
-    return model, metricas
-
-
-def comparar_modelos(lista_metricas: list) -> pd.DataFrame:
-    df_comp = pd.DataFrame(lista_metricas)
-    df_comp = df_comp.sort_values('ROC-AUC', ascending=False).reset_index(drop=True)
-    mejor = df_comp.iloc[0]['Modelo']
-
-    print("\n" + "="*85)
-    print(" TABLA COMPARATIVA DE MODELOS")
-    print("="*85)
-    print(df_comp.to_string(index=False))
-    print(f"\n Mejor modelo por ROC-AUC: {mejor}")
-    print("="*85)
-
-    return df_comp
-
-
 def ft_engineering():
     print("\n" + "="*85)
     print(" PIPELINE FEATURE ENGINEERING + MODELADO SUPERVISADO")
@@ -204,7 +94,7 @@ def ft_engineering():
 
     modelos = {}
     metricas_lista = []
-    for nombre, model_class, kwargs in _CONFIG_MODELOS:
+    for nombre, model_class, kwargs in CONFIG_MODELOS:
         print(f"\n[LOG] Entrenando {nombre}...")
         model, metrica = entrenar_y_evaluar(
             model_class, kwargs.copy(), nombre,
@@ -214,6 +104,18 @@ def ft_engineering():
         metricas_lista.append(metrica)
 
     df_comparativa = comparar_modelos(metricas_lista)
+
+    mejor_nombre = df_comparativa.iloc[0]['Modelo']
+    mejor_modelo = modelos[mejor_nombre.lower().replace(' ', '_')]
+    os.makedirs(os.path.join(os.path.dirname(__file__), '..', 'models'), exist_ok=True)
+    ruta_modelo = os.path.join(os.path.dirname(__file__), '..', 'models', 'modelo.pkl')
+    ruta_preprocessor = os.path.join(os.path.dirname(__file__), '..', 'models', 'preprocessor.pkl')
+
+    joblib.dump(mejor_modelo, ruta_modelo)
+    joblib.dump(preprocessor, ruta_preprocessor)
+    print(f"\n[LOG] Mejor modelo guardado: {ruta_modelo}")
+    print(f"[LOG] Preprocessor guardado: {ruta_preprocessor}")
+
     print("\n PIPELINE FINALIZADO CORRECTAMENTE")
 
     return (
