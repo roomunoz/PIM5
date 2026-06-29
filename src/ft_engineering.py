@@ -1,89 +1,272 @@
-# librerías
+# ARCHIVO: src/ft_engineering.py
+# VERSIÓN: V1.1.2 (Avance 2 FINAL - PRODUCCIÓN)
+# DESCRIPCIÓN:
+# Pipeline completo de Feature Engineering + Baseline Model.
+# Incluye limpieza, eliminación de variables irrelevantes,
+# creación de features, control de leakage y evaluación.
+
+
+# IMPORTAMOS LIBRERIAS
 import pandas as pd
-from cargar_datos import cargarDatos
-from sklearn.preprocessing import FunctionTransformer
+import numpy as np
+
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from sklearn.model_selection import train_test_split
 
-# cargar los datos
-df = cargarDatos()
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
 
-# vamos a tener una vista previa de los datos
-print(df.head())
-print(df.info())
-print(df.describe())
 
-# Paso 1: features/target split
-X = df.drop('Pago_atiempo', axis=1) # features
-y = df['Pago_atiempo']             # target
+# CARGA DE DATOS
+from cargar_datos import cargarDatos
 
-# Paso 2: definir variables por tipo
-num_features = X.select_dtypes('number').columns
-cat_features = X.select_dtypes('object').columns
 
-print("Numeric features")
-print(num_features)
-print("Categorical features")
-print(cat_features)
+# FUNCIONES AUXILIARES
+def summarize_classification(y_test, y_pred):
+    print("\n" + "="*75)
+    print(" RESUMEN DE EVALUACIÓN DEL MODELO")
+    print("="*75)
 
-# Paso 3: Crear pipelines para cada ruta
-## Ruta 1: numéricas
-num_transformer =  Pipeline(steps=[
-    ('inputer', SimpleImputer(strategy='mean'))
-])
+    print("\n Matriz de Confusión:")
+    print(confusion_matrix(y_test, y_pred))
 
-## Ruta 2: categóricas
-cat_transformer = Pipeline(steps=[
-    ('to_str', FunctionTransformer(lambda x: x.astype(str))),
-    ('inputer', SimpleImputer(strategy='most_frequent')),
-    ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
-])
+    print("\n Reporte de Clasificación:")
+    print(classification_report(y_test, y_pred))
 
-# Paso 4: Combinar las 2 rutas en ColumnTransformer
-preprocessor = ColumnTransformer(
-    transformers=[
-        ('num', num_transformer, num_features),
-        ('cat', cat_transformer, cat_features)
-    ])
 
-# Paso 5: dividir el dataset en train/test (antes de preprocesar)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y)
+def build_model(model, X_train, y_train):
+    print("\n[LOG]  Entrenando modelo baseline...")
+    model.fit(X_train, y_train)
+    print("[LOG] Modelo entrenado correctamente")
+    return model
 
-# Paso 6: Aplicamos el preprocesamiento
-X_train_processed = preprocessor.fit_transform(X_train)
-X_test_processed = preprocessor.transform(X_test)
 
-# Paso 7: resultados del preprocesamiento 
-print("X_train preprocesados:")
-print(X_train_processed)
-print(X_train_processed.shape)
-print("X_test preprocesados:")
-print(X_test_processed)
-print(X_test_processed.shape)
-
-# Paso 8: construimos una función para "exportar": ft_engineering()
+# ================================================================
+# PIPELINE PRINCIPAL
+# ================================================================
 def ft_engineering():
-    num_features = X.select_dtypes('number').columns
-    cat_features = X.select_dtypes('object').columns
-    num_transformer =  Pipeline(steps=[
-    ('inputer', SimpleImputer(strategy='mean'))
-    ])
 
-    cat_transformer = Pipeline(steps=[
-        ('to_str', FunctionTransformer(lambda x: x.astype(str))),
-        ('inputer', SimpleImputer(strategy='most_frequent')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
-        ])
+    print("\n" + "="*85)
+    print(" PIPELINE FEATURE ENGINEERING + MODELADO BASELINE")
+    print("="*85)
 
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', num_transformer, num_features),
-            ('cat', cat_transformer, cat_features)
-            ]
+
+    # ------------------------------------------------------------
+    # 1. CARGA DE DATOS
+    # ------------------------------------------------------------
+    df = cargarDatos().copy()
+
+    print("\n[LOG] Dataset cargado")
+    print(f"[LOG] Shape inicial: {df.shape}")
+
+
+    # ------------------------------------------------------------
+    # 2. ELIMINACIÓN DE VARIABLES IRRELEVANTES (CRÍTICO)
+    # ------------------------------------------------------------
+    print("\n[LOG] Eliminando variables irrelevantes...")
+
+    columnas_irrelevantes = [
+        'id_cliente',
+        'nombre_cliente'
+    ]
+
+    df.drop(columns=[c for c in columnas_irrelevantes if c in df.columns],
+            inplace=True,
+            errors='ignore')
+
+    print("[LOG] IDs eliminados (no aportan al modelo)")
+
+
+    # ------------------------------------------------------------
+    # 3. LIMPIEZA CATEGÓRICA
+    # ------------------------------------------------------------
+    print("\n[LOG] Validando variables categóricas...")
+
+    categorias_validas = ['Creciente', 'Decreciente', 'Estable']
+
+    antes = df['tendencia_ingresos'].isna().sum()
+
+    df['tendencia_ingresos'] = df['tendencia_ingresos'].where(
+        df['tendencia_ingresos'].isin(categorias_validas),
+        np.nan
     )
 
-    return preprocessor
+    despues = df['tendencia_ingresos'].isna().sum()
+
+    print(f"[LOG] tendencia_ingresos: {antes} → {despues} nulos")
+
+
+    # ------------------------------------------------------------
+    # 4. FEATURE ENGINEERING
+    # ------------------------------------------------------------
+    print("\n[LOG] Feature Engineering...")
+
+    # salario cero entero
+    df['salario_cero'] = (df['salario_cliente'] == 0).astype(int)
+
+    # Convertir 0 → NaN para imputación correcta
+    df['salario_cliente'] = df['salario_cliente'].replace(0, np.nan)
+
+    # Ratio endeudamiento robusto
+    df['ratio_endeudamiento'] = df['saldo_total'] / df['salario_cliente']
+    df['ratio_endeudamiento'] = df['ratio_endeudamiento'].replace([np.inf, -np.inf], np.nan)
+
+    print("[LOG] Features financieras creadas")
+
+
+    # ------------------------------------------------------------
+    #  FEATURE ENGINEERING TEMPORAL
+    # ------------------------------------------------------------
+    if 'fecha_prestamo' in df.columns:
+        df['fecha_prestamo'] = pd.to_datetime(df['fecha_prestamo'], errors='coerce')
+
+        df['anio_prestamo'] = df['fecha_prestamo'].dt.year
+        df['mes_prestamo'] = df['fecha_prestamo'].dt.month
+        df['dia_semana'] = df['fecha_prestamo'].dt.dayofweek
+
+        df.drop(columns=['fecha_prestamo'], inplace=True)
+
+        print("[LOG] Features temporales creadas y cambio de tipo")
+
+
+    # ------------------------------------------------------------
+    # 5. DATA LEAKAGE CONTROL
+    # ------------------------------------------------------------
+    print("\n[LOG] Control de leakage...")
+
+    if 'puntaje' in df.columns:
+        df.drop(columns=['puntaje'], inplace=True)
+        print("[LOG] puntaje eliminado (leakage potencial)")
+
+
+    # ------------------------------------------------------------
+    # 6. TARGET / FEATURES
+    # ------------------------------------------------------------
+    print("\n[LOG] Separando target y features...")
+
+    target = 'Pago_atiempo'
+
+    X = df.drop(columns=[target])
+    y = df[target]
+
+    print(f"[LOG] Features finales: {X.shape}")
+    print(f"[LOG] Distribución target:\n{y.value_counts(normalize=True)}")
+
+
+    # ------------------------------------------------------------
+    # 7. TIPOS DE VARIABLES
+    # ------------------------------------------------------------
+    print("\n[LOG]  Detectando tipos de variables...")
+
+    num_features = X.select_dtypes(include=[np.number]).columns.tolist()
+
+    ordinal_features = ['tendencia_ingresos']
+
+    cat_features = [
+        c for c in X.select_dtypes(include=['object', 'category']).columns
+        if c not in ordinal_features
+    ]
+
+    print(f"[LOG] Numéricas: {len(num_features)}")
+    print(f"[LOG] Categóricas: {len(cat_features)}")
+    print(f"[LOG] Ordinales: {len(ordinal_features)}")
+
+
+    # ------------------------------------------------------------
+    # 8. PIPELINES DE PREPROCESAMIENTO
+    # ------------------------------------------------------------
+    num_pipe = Pipeline([
+        ('imputer', SimpleImputer(strategy='median'))
+    ])
+
+    cat_pipe = Pipeline([
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+    ])
+
+    ord_pipe = Pipeline([
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('ordinal', OrdinalEncoder(
+            categories=[['Decreciente', 'Estable', 'Creciente']]
+        ))
+    ])
+
+    preprocessor = ColumnTransformer([
+        ('num', num_pipe, num_features),
+        ('cat', cat_pipe, cat_features),
+        ('ord', ord_pipe, ordinal_features)
+    ])
+
+
+    # ------------------------------------------------------------
+    # 9. SPLIT TRAIN / TEST
+    # ------------------------------------------------------------
+    print("\n[LOG] Dividiendo train/test...")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y
+    )
+
+    print("[LOG] Split completado")
+
+
+    # ------------------------------------------------------------
+    # 10. TRANSFORMACIÓN
+    # ------------------------------------------------------------
+    print("\n[LOG] Aplicando preprocessing...")
+
+    X_train = preprocessor.fit_transform(X_train)
+    X_test = preprocessor.transform(X_test)
+
+    print(f"[LOG] Train shape: {X_train.shape}")
+    print(f"[LOG] Test shape: {X_test.shape}")
+
+
+    # ------------------------------------------------------------
+    # 11. MODELO BASELINE
+    # ------------------------------------------------------------
+    print("\n[LOG]  Entrenando modelo baseline...")
+
+    model = LogisticRegression(max_iter=1000, class_weight= "balanced")
+
+    model = build_model(model, X_train, y_train)
+
+    y_pred = model.predict(X_test)
+
+    summarize_classification(y_test, y_pred)
+
+    roc = roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])
+
+    print(f"\n ROC-AUC: {roc:.4f}")
+
+    print("\n PIPELINE FINALIZADO CORRECTAMENTE")
+
+
+    return X_train, X_test, y_train, y_test, model
+
+
+# ================================================================
+# COMPROBACIÓN EJECUCIÓN
+# ================================================================
+if __name__ == "__main__":
+
+    try:
+        print("\n" + "="*85)
+        print(" EJECUCIÓN LOCAL DEL PIPELINE")
+        print("="*85)
+
+        X_train_p, X_test_p, y_train_p, y_test_p, model = ft_engineering()
+
+        print("\n PIPELINE EJECUTADO CORRECTAMENTE")
+        print(" Sin errores en feature engineering ni modelado")
+
+    except Exception as e:
+        print("\n ERROR EN PIPELINE")
+        print(f"Detalle: {e}")
+
