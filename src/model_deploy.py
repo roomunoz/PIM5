@@ -18,14 +18,13 @@ app = FastAPI(
 #2. Acá vamos a cargar el modelo (modelo.pkl)
 try:
     #2.1 Aca cargamos el modelo desde el archivo .pkl
-    with open("../models/modelo.pkl", "rb") as f:
+    with open("models/modelo.pkl", "rb") as f:
         modelo = pickle.load(f)
 
     print("Modelo cargado exitosamente...")
 except Exception as e:
     print(f"Error al cargar el modelo: {e}")
     modelo = None
-
 # 3. Definición de endpoints
 @app.get("/saludo")
 def saludo():
@@ -38,7 +37,7 @@ def predict_batch (input_data: dict):
         return {"El modelo no pudo ser cargado. Revisa los logs del servidor para mas detalles"}
     
     try:
-        return {"El modelo está cargado y listo para hacer predicciones"}
+        return {"El modelo esta cargado y listo para hacer predicciones"}
 
     except Exception as e:
         return {f"Error al hacer la predicción: {e}"}
