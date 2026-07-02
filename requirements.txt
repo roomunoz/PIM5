@@ -1,5 +1,5 @@
-pandas
-numpy
+﻿pandas==3.0.3
+numpy==2.4.6
 openpyxl
 python-dotenv
 db-dtypes
@@ -8,8 +8,11 @@ notebook
 ipykernel
 seaborn
 ipywidgets
-scikit-learn
-xgboost
+scikit-learn==1.9.0
+xgboost==3.2.0
 pydantic
 fastapi
-uvicorn[standard]
+joblib==1.5.3
+scipy
+streamlit
+uvicorn
