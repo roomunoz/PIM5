@@ -1,15 +1,16 @@
-FROM python:3.9-slim 
+FROM python:3.11.6-slim
 
 WORKDIR /app
 
 COPY requirements.txt .
-
 RUN pip install --upgrade pip && \
     pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
+COPY src/ ./src/
+COPY models/ ./models/
 
-COPY . .
+WORKDIR /app/src
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.model_deploy:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "model_deploy:app", "--host", "0.0.0.0", "--port", "8000"]

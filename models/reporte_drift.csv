@@ -1,27 +1,25 @@
 Feature,PSI,Alerta
-puntaje_datacredito,4.8965,DRIFT
+saldo_total,0.0019,SIN CAMBIO
+dia_semana,0.0,SIN CAMBIO
+mes_prestamo,0.0,SIN CAMBIO
+salario_cliente,0.0002,SIN CAMBIO
+total_otros_prestamos,0.0002,SIN CAMBIO
+cuota_pactada,0.09,SIN CAMBIO
+anio_prestamo,0.0,SIN CAMBIO
+ratio_endeudamiento,0.0,SIN CAMBIO
+promedio_ingresos_datacredito,0.0429,SIN CAMBIO
+saldo_mora,0.0003,SIN CAMBIO
+saldo_principal,0.0184,SIN CAMBIO
+saldo_mora_codeudor,0.0,SIN CAMBIO
+creditos_sectorCooperativo,0.1676,MODERADO
+capital_prestado,0.1152,MODERADO
+creditos_sectorReal,0.1336,MODERADO
+creditos_sectorFinanciero,0.1894,MODERADO
+tipo_laboral,4433.74,DRIFT
 tipo_credito,2.2853,DRIFT
+huella_consulta,0.2436,DRIFT
+cant_creditosvigentes,0.2322,DRIFT
+puntaje_datacredito,4.8965,DRIFT
 edad_cliente,1.7381,DRIFT
 plazo_meses,0.4733,DRIFT
 tendencia_ingresos,0.2979,DRIFT
-huella_consulta,0.2436,DRIFT
-cant_creditosvigentes,0.2322,DRIFT
-creditos_sectorFinanciero,0.1894,MODERADO
-creditos_sectorCooperativo,0.1676,MODERADO
-creditos_sectorReal,0.1336,MODERADO
-capital_prestado,0.1152,MODERADO
-cuota_pactada,0.09,SIN CAMBIO
-promedio_ingresos_datacredito,0.0429,SIN CAMBIO
-saldo_principal,0.0184,SIN CAMBIO
-saldo_total,0.0019,SIN CAMBIO
-saldo_mora,0.0003,SIN CAMBIO
-salario_cliente,0.0002,SIN CAMBIO
-total_otros_prestamos,0.0002,SIN CAMBIO
-saldo_mora_codeudor,0.0,SIN CAMBIO
-salario_cero,0.0,BINARIA (saltada)
-anio_prestamo,0.0,SIN CAMBIO
-ratio_endeudamiento,0.0,SIN CAMBIO
-mes_prestamo,0.0,SIN CAMBIO
-dia_semana,0.0,SIN CAMBIO
-tipo_laboral_Empleado,0.0,BINARIA (saltada)
-tipo_laboral_Independiente,0.0,BINARIA (saltada)

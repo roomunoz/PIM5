@@ -1,4 +1,4 @@
-# src/app.py
+# src/dashboard.py
 # Dashboard Streamlit - Monitoreo de Data Drift
 
 import os

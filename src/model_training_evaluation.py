@@ -63,14 +63,14 @@ def entrenar_y_evaluar(model_class, kwargs, nombre, X_train, y_train, X_test, y_
 
 def comparar_modelos(lista_metricas: list) -> pd.DataFrame:
     df_comp = pd.DataFrame(lista_metricas)
-    df_comp = df_comp.sort_values('ROC-AUC', ascending=False).reset_index(drop=True)
+    df_comp = df_comp.sort_values('Recall-0', ascending=False).reset_index(drop=True)
     mejor = df_comp.iloc[0]['Modelo']
 
     print("\n" + "="*85)
     print(" TABLA COMPARATIVA DE MODELOS")
     print("="*85)
     print(df_comp.to_string(index=False))
-    print(f"\n Mejor modelo por ROC-AUC: {mejor}")
+    print(f"\n Mejor modelo por Recall-0 (deteccion de morosos): {mejor}")
     print("="*85)
 
     return df_comp
